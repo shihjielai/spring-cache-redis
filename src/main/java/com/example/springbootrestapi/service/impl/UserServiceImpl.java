@@ -69,6 +69,12 @@ public class UserServiceImpl implements UserService {
     @Override
     public List<UserDto> getAllUsers() throws JsonProcessingException {
 
+        /**
+         * 空結果快取: 解決快取穿透
+         * 設定過期時間: 解決快取雪崩
+         * 加鎖: 解決快取擊穿
+         */
+
         // 給快取中放json字串[序列化與反序列化]
         ObjectMapper mapper = new ObjectMapper();
 
