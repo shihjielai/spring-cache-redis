@@ -83,12 +83,13 @@ public class UserServiceImpl implements UserService {
         String allUsers = stringRedisTemplate.opsForValue().get("allUsers");
 
         if (StringUtils.isEmpty(allUsers)) {
+            System.out.println("沒有快取，查詢資料庫");
             List<UserDto> allUsersFromDB = getAllUsersFromDB();
-            String jsonString = mapper.writeValueAsString(allUsersFromDB);
-            stringRedisTemplate.opsForValue().set("allUsers", jsonString);
+
             return allUsersFromDB;
         }
 
+        System.out.println("有快取，直接返回");
         List<UserDto> userDtos = mapper.readValue(allUsers, new TypeReference<List<UserDto>>() {});
 
         return userDtos;
@@ -110,7 +111,7 @@ public class UserServiceImpl implements UserService {
                 return userDtos;
             }
 
-            System.out.println("getAllUsersFromDB");
+            System.out.println("查詢資料庫...");
             List<User> users = userRepository.findAll();
 //        List<UserDto> userDtos = users.stream()
 //                .map(user -> userMapper.mapToUserDto(user))
@@ -123,6 +124,9 @@ public class UserServiceImpl implements UserService {
                     .map(user -> AutoUserMapper.autoUserMapper.mapToUserDto(user))
                     .collect(Collectors.toList());
 
+            // 查到的資料放入快取，將其轉為json放入快取
+            String jsonString = mapper.writeValueAsString(userDtos);
+            stringRedisTemplate.opsForValue().set("allUsers", jsonString);
             return userDtos;
         }
 
