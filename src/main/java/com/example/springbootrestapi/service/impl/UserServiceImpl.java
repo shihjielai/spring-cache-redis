@@ -33,6 +33,8 @@ public class UserServiceImpl implements UserService {
 
     private final StringRedisTemplate stringRedisTemplate;
 
+    private final ObjectMapper mapper;
+
     @Override
     public UserDto createUser(UserDto userDto) {
         // convert UserDto into User JPA Entity
@@ -76,7 +78,6 @@ public class UserServiceImpl implements UserService {
          */
 
         // 給快取中放json字串[序列化與反序列化]
-        ObjectMapper mapper = new ObjectMapper();
 
         // 加入快取邏輯，資料為json
         String allUsers = stringRedisTemplate.opsForValue().get("allUsers");
@@ -93,9 +94,24 @@ public class UserServiceImpl implements UserService {
         return userDtos;
     }
 
-    public List<UserDto> getAllUsersFromDB() {
-        System.out.println("getAllUsersFromDB");
-        List<User> users = userRepository.findAll();
+    public List<UserDto> getAllUsersFromDB() throws JsonProcessingException {
+
+        // 只要是同一把鎖，就能鎖住需要這個鎖的所有執行續
+        // 1. synchronized (this): SpringBoot所有的component都是single instance
+
+        synchronized (this) {
+
+            // 得到鎖以後，應該再去快取中確認是否存在，如果沒有才需要繼續查詢
+            String allUsers = stringRedisTemplate.opsForValue().get("allUsers");
+            if (StringUtils.isNotBlank(allUsers)) {
+                // 快取不為 null 直接回傳
+                List<UserDto> userDtos = mapper.readValue(allUsers, new TypeReference<List<UserDto>>() {});
+
+                return userDtos;
+            }
+
+            System.out.println("getAllUsersFromDB");
+            List<User> users = userRepository.findAll();
 //        List<UserDto> userDtos = users.stream()
 //                .map(user -> userMapper.mapToUserDto(user))
 //                .collect(Collectors.toList());
@@ -103,11 +119,13 @@ public class UserServiceImpl implements UserService {
 //                        .map(user -> modelMapper.map(user, UserDto.class))
 //                        .collect(Collectors.toList());
 
-        List<UserDto> userDtos = users.stream()
-                .map(user -> AutoUserMapper.autoUserMapper.mapToUserDto(user))
-                .collect(Collectors.toList());
+            List<UserDto> userDtos = users.stream()
+                    .map(user -> AutoUserMapper.autoUserMapper.mapToUserDto(user))
+                    .collect(Collectors.toList());
 
-        return userDtos;
+            return userDtos;
+        }
+
     }
 
     @Override
